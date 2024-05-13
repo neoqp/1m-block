@@ -1,11 +1,11 @@
-all: netfilter-test
+all:1m-block
 
-netfilter-test:
+1m-block:
 	sudo iptables -F
 	sudo iptables -A OUTPUT -j NFQUEUE --queue-num 0
 	sudo iptables -A INPUT -j NFQUEUE --queue-num 0
-	gcc -o netfilter-test main.c -lnetfilter_queue
+	g++ -o 1m-block main.cpp -lnetfilter_queue
 
 clean:
-	rm -f netfilter-test
+	rm -f 1m-block
 	rm -f index*

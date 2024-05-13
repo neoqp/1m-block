@@ -8,18 +8,33 @@
 #include <libnet.h>
 #include <libnetfilter_queue/libnetfilter_queue.h>
 #include <string.h>
-void dump(unsigned char* buf, int size) {
-	int i;
-	for (i = 0; i < size; i++) {
-		if (i != 0 && i % 16 == 0)
-			printf("\n");
-		printf("%02X ", buf[i]);
-	}
-	printf("\n");
-}
+#include <string>
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <set>
+#include <time.h>
+
+std::set<std::string> s;
+
 
 int pass=0;
-char block[4096];
+
+int is_in_set(char *host){
+	std::string str(host);
+	printf("%s\n", host);
+
+	struct timespec start_time;
+	clock_gettime(CLOCK_MONOTONIC, &start_time);
+	int ans = s.find(str) != s.end();
+	struct timespec end_time;
+	clock_gettime(CLOCK_MONOTONIC, &end_time);
+	long long diff_nanoseconds = (end_time.tv_sec - start_time.tv_sec) * 1000000000LL +(end_time.tv_nsec - start_time.tv_nsec);
+    double diff_milliseconds = diff_nanoseconds / 1000000.0;
+	printf("find item time: %.4fms\n", diff_milliseconds);
+
+	return ans;
+}
 
 /* returns packet id */
 static u_int32_t print_pkt (struct nfq_data *tb){
@@ -33,43 +48,20 @@ static u_int32_t print_pkt (struct nfq_data *tb){
 	ph = nfq_get_msg_packet_hdr(tb);
 	if (ph) {
 		id = ntohl(ph->packet_id);
-		//printf("hw_protocol=0x%04x hook=%u id=%u ",
-			//ntohs(ph->hw_protocol), ph->hook, id);
 	}
 
 	hwph = nfq_get_packet_hw(tb);
 	if (hwph) {
 		int i, hlen = ntohs(hwph->hw_addrlen);
-
-		//printf("hw_src_addr=");
-		//for (i = 0; i < hlen-1; i++)
-			//printf("%02x:", hwph->hw_addr[i]);
-		//printf("%02x ", hwph->hw_addr[hlen-1]);
 	}
 
 	mark = nfq_get_nfmark(tb);
-	//if (mark)
-		//printf("mark=%u ", mark);
-
 	ifi = nfq_get_indev(tb);
-	//if (ifi)
-		//printf("indev=%u ", ifi);
-
 	ifi = nfq_get_outdev(tb);
-	//if (ifi)
-		//printf("outdev=%u ", ifi);
 	ifi = nfq_get_physindev(tb);
-	//if (ifi)
-		//printf("physindev=%u ", ifi);
-
 	ifi = nfq_get_physoutdev(tb);
-	//if (ifi)
-		//printf("physoutdev=%u ", ifi);
-
 	ret = nfq_get_payload(tb, &data);
 	if (ret >= 0){
-		//printf("payload_len=%d\n", ret);
-
 		struct libnet_ipv4_hdr *ip_hdr = (struct libnet_ipv4_hdr *)data;
 		if(ip_hdr->ip_p == IPPROTO_TCP){
 			struct libnet_tcp_hdr *tcp_hdr = (struct libnet_tcp_hdr *)(data + ((ip_hdr->ip_hl)<<2));
@@ -84,7 +76,7 @@ static u_int32_t print_pkt (struct nfq_data *tb){
 					char host[host_len+1];
 					strncpy(host, host_start, host_len);
 					host[host_len]=0;
-					if(strcmp(host, block)==0){
+					if(is_in_set(host)){
 						pass=0;
 						return id;
 					}
@@ -103,38 +95,47 @@ static u_int32_t print_pkt (struct nfq_data *tb){
 static int cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
 	      struct nfq_data *nfa, void *data){
 	u_int32_t id = print_pkt(nfa);
-	printf("entering callback\n");
+	//printf("entering callback\n");
 	if(pass==0){
 		printf("filtered!!\n");
 		return nfq_set_verdict(qh, id, NF_DROP, 0, NULL);
 	}
 	else{
-		printf("Allowed\n");
 		return nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
 	}
 }
 
 int main(int argc, char **argv)
 {
-    FILE* stream = fopen("top-1m.csv", "r");
-    char line[1024];
-    while(fgets(line, 1024, stream)){
-        char *tmp = strdup(line);
-        printf("%s\n", tmp);
-        break;
+	struct timespec start_time;
+	clock_gettime(CLOCK_MONOTONIC, &start_time);
+	std::ifstream file("top-1m.csv");
+	if (file.is_open()) {
+        std::string line;
+        while (std::getline(file, line)) {
+            std::stringstream ss(line);
+            std::string token;
+            std::getline(ss, token, ',');
+            std::getline(ss, token, ',');
+
+
+            if (s.find(token) == s.end()) {
+                s.insert(token);
+            }
+        }
+        file.close();
     }
+	struct timespec end_time;
+	clock_gettime(CLOCK_MONOTONIC, &end_time);
+	long long diff_nanoseconds = (end_time.tv_sec - start_time.tv_sec) * 1000000000LL +(end_time.tv_nsec - start_time.tv_nsec);
+    double diff_milliseconds = diff_nanoseconds / 1000000.0;
+	printf("File load & set input time: %.2fms\n", diff_milliseconds);
 	struct nfq_handle *h;
 	struct nfq_q_handle *qh;
 	struct nfnl_handle *nh;
 	int fd;
 	int rv;
 	char buf[4096] __attribute__ ((aligned));
-	if(argc<2){
-		printf("input block address!\n");
-		return 1;
-	}
-	strcpy(block, argv[1]);
-	printf("%s", block);
 
 	printf("opening library handle\n");
 	h = nfq_open();
