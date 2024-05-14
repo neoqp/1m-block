@@ -14,6 +14,7 @@
 #include <sstream>
 #include <set>
 #include <time.h>
+#include <unistd.h>
 
 std::set<std::string> s;
 
@@ -22,7 +23,7 @@ int pass=0;
 
 int is_in_set(char *host){
 	std::string str(host);
-	printf("%s\n", host);
+	printf("host : %s\n", host);
 
 	struct timespec start_time;
 	clock_gettime(CLOCK_MONOTONIC, &start_time);
@@ -107,6 +108,13 @@ static int cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
 
 int main(int argc, char **argv)
 {
+	char command[100];
+	pid_t pid = getpid();
+
+	sprintf(command, "top -p %d -n 1 -b > output1.txt", pid);
+	//printf("%s\n", command);
+	system(command);
+
 	struct timespec start_time;
 	clock_gettime(CLOCK_MONOTONIC, &start_time);
 	std::ifstream file("top-1m.csv");
@@ -130,6 +138,31 @@ int main(int argc, char **argv)
 	long long diff_nanoseconds = (end_time.tv_sec - start_time.tv_sec) * 1000000000LL +(end_time.tv_nsec - start_time.tv_nsec);
     double diff_milliseconds = diff_nanoseconds / 1000000.0;
 	printf("File load & set input time: %.2fms\n", diff_milliseconds);
+
+	sprintf(command, "top -p %d -n 1 -b > output2.txt", pid);
+	system(command);
+
+	FILE *file1, *file2;
+	char line[256];
+	file1 = fopen("output1.txt", "r");
+	file2 = fopen("output2.txt", "r");
+	
+	printf("<<BEFORE file load & input>>\n");
+	for(int i=0;i<8;i++){
+		if(fgets(line, sizeof(line), file1)==NULL) break;
+		if(i<6) continue;
+		printf("%s", line);
+	}
+	printf("<<AFTER file load & input>>\n");
+	for(int i=0;i<8;i++){
+		if(fgets(line, sizeof(line), file2)==NULL) break;
+		if(i<6) continue;
+		printf("%s", line);
+	}
+	printf("\n");
+	fclose(file1);
+	fclose(file2);
+
 	struct nfq_handle *h;
 	struct nfq_q_handle *qh;
 	struct nfnl_handle *nh;
@@ -173,7 +206,7 @@ int main(int argc, char **argv)
 
 	for (;;) {
 		if ((rv = recv(fd, buf, sizeof(buf), 0)) >= 0) {
-			printf("pkt received\n");
+			//printf("pkt received\n");
 			nfq_handle_packet(h, buf, rv);
 			continue;
 		}
