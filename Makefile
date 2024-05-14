@@ -9,3 +9,4 @@ all:1m-block
 clean:
 	rm -f 1m-block
 	rm -f index*
+	rm -f output*
