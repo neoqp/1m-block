@@ -87,7 +87,7 @@ static u_int32_t print_pkt (struct nfq_data *tb){
 		}
 	}
 	pass=1;
-	fputc('\n', stdout);
+	//fputc('\n', stdout);
 
 	return id;
 }
@@ -102,6 +102,7 @@ static int cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
 		return nfq_set_verdict(qh, id, NF_DROP, 0, NULL);
 	}
 	else{
+		printf("pass!!\n");
 		return nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
 	}
 }
@@ -206,7 +207,7 @@ int main(int argc, char **argv)
 
 	for (;;) {
 		if ((rv = recv(fd, buf, sizeof(buf), 0)) >= 0) {
-			//printf("pkt received\n");
+			printf("pkt received\n");
 			nfq_handle_packet(h, buf, rv);
 			continue;
 		}
